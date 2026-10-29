@@ -85,8 +85,8 @@ or document-heavy.
 ## Setup
 
 ```bash
-python -m venv vlm
-source vlm/bin/activate
+conda create -n pga-kd python=3.11 -y
+conda activate pga-kd
 pip install -r requirements.txt
 python fix_lib.py
 ```

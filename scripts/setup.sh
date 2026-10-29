@@ -3,14 +3,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# prefer python3.11 (what the paper environment used), fall back to whatever python3 is installed
-PY=${PYTHON:-$(command -v python3.11 || command -v python3 || true)}
-[ -n "$PY" ] || { echo "no python3 found; install it or set PYTHON=/path/to/python" >&2; exit 1; }
-echo "Using $($PY --version) at $PY"
-if [ ! -d vlm ]; then
-    $PY -m venv vlm
+# conda env with python 3.11 (what the paper environment used)
+ENV_NAME=${ENV_NAME:-pga-kd}
+command -v conda >/dev/null || { echo "conda not found; install Miniconda first" >&2; exit 1; }
+eval "$(conda shell.bash hook)"
+if ! conda env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
+    conda create -y -n "$ENV_NAME" python=3.11
 fi
-source vlm/bin/activate
+conda activate "$ENV_NAME"
+echo "Using $(python --version) at $(which python)"
+
 pip install --upgrade pip
 pip install -r requirements.txt
 python fix_lib.py
@@ -32,4 +34,4 @@ else
 fi
 
 # weights & biases is the default logger; set REPORT_TO=none to disable it
-echo "Setup done. Run 'wandb login' (or export REPORT_TO=none), then 'source vlm/bin/activate'."
+echo "Setup done. Run 'conda activate $ENV_NAME', then 'wandb login' (or export REPORT_TO=none)."
