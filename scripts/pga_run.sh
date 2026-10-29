@@ -7,8 +7,9 @@
 #   STUDENT   fastvlm | onevision                (default fastvlm)
 #   TASK      cls | vqa | ret | grd              (default vqa)
 #   EVAL_SETS id | ood | both | none             (default id)
-#   NUM_GPUS  GPUs to use                        (default: all visible; global batch is kept fixed)
-#   BATCH_SIZE  per-GPU batch override           (lower it if you run out of GPU memory)
+#   NUM_GPUS  GPUs to use                        (default 1)
+#   BATCH_SIZE  per-GPU micro-batch              (default: paper's per-GPU value; lower it on OOM)
+#   The paper's global batch (8 x per-GPU) is kept via gradient accumulation.
 #   EXP_NAME  run name, also the folder under training/ and eval_outputs/
 #   LORA_R LORA_A MSE_W PGA_W SCL_W VAR_T SEED WARMUP   override the track defaults
 #   DISABLE_PGA DISABLE_INTRA DISABLE_INTER   set to 1 for the Table 4 ablations
@@ -21,8 +22,7 @@ cd "$(dirname "$0")/.."
 STUDENT=${STUDENT:-fastvlm}
 TASK=${TASK:-vqa}
 EVAL_SETS=${EVAL_SETS:-id}
-NUM_GPUS=${NUM_GPUS:-$(nvidia-smi -L 2>/dev/null | wc -l)}
-[ "$NUM_GPUS" -ge 1 ] || { echo "no GPU found; set NUM_GPUS" >&2; exit 1; }
+NUM_GPUS=${NUM_GPUS:-1}
 SEED=${SEED:-42}
 MSE_W=${MSE_W:-1.0}
 PGA_W=${PGA_W:-2.0}
@@ -44,10 +44,12 @@ esac
 LORA_R=${LORA_R:-$R}
 LORA_A=${LORA_A:-$A}
 WARMUP=${WARMUP:-$WU}
-BATCH_SIZE=${BATCH_SIZE:-$(( PER_GPU * 8 / NUM_GPUS ))}
-if [ "$(( BATCH_SIZE * NUM_GPUS ))" -ne "$(( PER_GPU * 8 ))" ]; then
-    echo "WARNING: global batch is $(( BATCH_SIZE * NUM_GPUS )), paper setting is $(( PER_GPU * 8 ))" >&2
+BATCH_SIZE=${BATCH_SIZE:-$PER_GPU}
+GLOBAL_BS=$(( PER_GPU * 8 ))
+if [ $(( GLOBAL_BS % (BATCH_SIZE * NUM_GPUS) )) -ne 0 ]; then
+    echo "BATCH_SIZE * NUM_GPUS must divide the global batch $GLOBAL_BS" >&2; exit 1
 fi
+GRAD_ACCUM=$(( GLOBAL_BS / (BATCH_SIZE * NUM_GPUS) ))
 
 case "$STUDENT" in
     fastvlm)   MODEL="apple/FastVLM-0.5B";                              BACKBONE="llava_qwen2" ;;
@@ -78,7 +80,7 @@ EXTRA=()
 [ "${DISABLE_INTRA:-0}" = 1 ] && EXTRA+=(--pga_disable_intra True)
 [ "${DISABLE_INTER:-0}" = 1 ] && EXTRA+=(--pga_disable_inter True)
 
-echo "=== $EXP_NAME | $STUDENT/$TASK | r=$LORA_R a=$LORA_A bs/gpu=$BATCH_SIZE seed=$SEED"
+echo "=== $EXP_NAME | $STUDENT/$TASK | r=$LORA_R a=$LORA_A bs/gpu=$BATCH_SIZE x accum=$GRAD_ACCUM (global $GLOBAL_BS) seed=$SEED"
 echo "    mse=$MSE_W pga=$PGA_W scl=$SCL_W eta=$VAR_T ${EXTRA[*]:-}"
 
 # ---- train ----
@@ -98,7 +100,7 @@ else
         --image_dir "vlm2vec_train/MMEB-train" \
         --output_dir "training/$EXP_NAME" \
         --per_device_train_batch_size "$BATCH_SIZE" \
-        --gradient_accumulation_steps 1 \
+        --gradient_accumulation_steps "$GRAD_ACCUM" \
         --learning_rate 1e-4 --num_train_epochs 1 --bf16 \
         --save_total_limit 2 --logging_steps 1 --save_strategy "epoch" \
         --seed "$SEED" --weight_decay 0.01 \
