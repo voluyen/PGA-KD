@@ -35,4 +35,4 @@ else
 fi
 
 # wandb is off by default; set REPORT_TO=wandb to enable it
-echo "Setup done. Run 'conda activate $ENV_NAME', then 'wandb login' (or export REPORT_TO=none)."
+echo "Setup done. Run 'conda activate $ENV_NAME'. wandb is off unless you set REPORT_TO=wandb."
