@@ -7,7 +7,8 @@
 #   STUDENT   fastvlm | onevision                (default fastvlm)
 #   TASK      cls | vqa | ret | grd              (default vqa)
 #   EVAL_SETS id | ood | both | none             (default id)
-#   NUM_GPUS  GPUs on this node                  (default 8; global batch is kept fixed)
+#   NUM_GPUS  GPUs to use                        (default: all visible; global batch is kept fixed)
+#   BATCH_SIZE  per-GPU batch override           (lower it if you run out of GPU memory)
 #   EXP_NAME  run name, also the folder under training/ and eval_outputs/
 #   LORA_R LORA_A MSE_W PGA_W SCL_W VAR_T SEED WARMUP   override the track defaults
 #   DISABLE_PGA DISABLE_INTRA DISABLE_INTER   set to 1 for the Table 4 ablations
@@ -20,7 +21,8 @@ cd "$(dirname "$0")/.."
 STUDENT=${STUDENT:-fastvlm}
 TASK=${TASK:-vqa}
 EVAL_SETS=${EVAL_SETS:-id}
-NUM_GPUS=${NUM_GPUS:-8}
+NUM_GPUS=${NUM_GPUS:-$(nvidia-smi -L 2>/dev/null | wc -l)}
+[ "$NUM_GPUS" -ge 1 ] || { echo "no GPU found; set NUM_GPUS" >&2; exit 1; }
 SEED=${SEED:-42}
 MSE_W=${MSE_W:-1.0}
 PGA_W=${PGA_W:-2.0}
@@ -42,7 +44,10 @@ esac
 LORA_R=${LORA_R:-$R}
 LORA_A=${LORA_A:-$A}
 WARMUP=${WARMUP:-$WU}
-BATCH_SIZE=$(( PER_GPU * 8 / NUM_GPUS ))
+BATCH_SIZE=${BATCH_SIZE:-$(( PER_GPU * 8 / NUM_GPUS ))}
+if [ "$(( BATCH_SIZE * NUM_GPUS ))" -ne "$(( PER_GPU * 8 ))" ]; then
+    echo "WARNING: global batch is $(( BATCH_SIZE * NUM_GPUS )), paper setting is $(( PER_GPU * 8 ))" >&2
+fi
 
 case "$STUDENT" in
     fastvlm)   MODEL="apple/FastVLM-0.5B";                              BACKBONE="llava_qwen2" ;;
