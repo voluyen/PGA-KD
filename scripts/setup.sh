@@ -3,8 +3,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# fix_lib.py patches ./vlm/lib/python3.11/..., so the venv must be python3.11 and named `vlm`
-PY=${PYTHON:-python3.11}
+# prefer python3.11 (what the paper environment used), fall back to whatever python3 is installed
+PY=${PYTHON:-$(command -v python3.11 || command -v python3 || true)}
+[ -n "$PY" ] || { echo "no python3 found; install it or set PYTHON=/path/to/python" >&2; exit 1; }
+echo "Using $($PY --version) at $PY"
 if [ ! -d vlm ]; then
     $PY -m venv vlm
 fi

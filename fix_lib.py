@@ -1,6 +1,11 @@
+import importlib.util
 import os
 
-file_path = "./vlm/lib/python3.11/site-packages/transformers/models/qwen2_vl/image_processing_qwen2_vl.py"
+# locate transformers in the running interpreter's environment instead of a fixed venv path
+spec = importlib.util.find_spec("transformers")
+file_path = os.path.join(
+    os.path.dirname(spec.origin), "models", "qwen2_vl", "image_processing_qwen2_vl.py"
+)
 
 start_line = 140
 end_line = 143
