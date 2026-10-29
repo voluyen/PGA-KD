@@ -573,7 +573,19 @@ class TrainingArguments(DistillationArguments, RKDArguments, CKDArguments, Propo
     pga_mse_loss_weight: float = field(
         default=1.0,
         metadata={"help": "Weight for the MSE loss in PGA distillation loss"}
-    )   
+    )
+    pga_disable_pga: bool = field(
+        default=False,
+        metadata={"help": "Ablation: drop L_PGA"}
+    )
+    pga_disable_intra: bool = field(
+        default=False,
+        metadata={"help": "Ablation: drop the intra-modal SCL pathways"}
+    )
+    pga_disable_inter: bool = field(
+        default=False,
+        metadata={"help": "Ablation: drop the inter-modal SCL pathways"}
+    )
 
 
 @dataclass

@@ -62,8 +62,12 @@ class PGAKDLoss(nn.Module):
         self.student_processor = None
 
         self.pga_weight = getattr(args, 'pga_loss_weight', getattr(args, 'kd_weight', 1.0))
-        self.scl_weight = getattr(args, 'scl_loss_weight', 1.0)
-        self.mse_weight = getattr(args, 'mse_loss_weight', 0.3)
+        self.scl_weight = getattr(args, 'pga_scl_loss_weight', 1.0)
+        self.mse_weight = getattr(args, 'pga_mse_loss_weight', 1.0)
+        # ablation switches (Table 4): drop L_PGA or either SCL pathway group
+        self.use_pga = not getattr(args, 'pga_disable_pga', False)
+        self.use_intra = not getattr(args, 'pga_disable_intra', False)
+        self.use_inter = not getattr(args, 'pga_disable_inter', False)
         self.projector_lr = getattr(args, 'projector_lr', 5e-4)
         self.variance_threshold = getattr(args, 'pga_spectral_variance_threshold', 0.95)
 
@@ -132,17 +136,21 @@ class PGAKDLoss(nn.Module):
             loss_mse = self.mse_loss_fn(s_qry, projected_t_qry)
 
         # 4. Geometry and semantics
-        loss_pga = self._compute_pga_loss(s_qry, s_pos, t_qry, t_pos)
+        zero = torch.zeros((), device=s_qry.device)
+        loss_pga = self._compute_pga_loss(s_qry, s_pos, t_qry, t_pos) if self.use_pga else zero
 
-        loss_scl = self._compute_scl_loss(
-            s_qry_hiddens, t_qry_hiddens,
-            s_qry_attn, t_qry_attn,
-            input_data['student_inputs']['qry']['input_ids'],
-            input_data['teacher_inputs']['qry']['input_ids'],
-            self.student_processor,
-            self.teacher_processor,
-            distiller.temperature
-        )
+        if self.use_intra or self.use_inter:
+            loss_scl = self._compute_scl_loss(
+                s_qry_hiddens, t_qry_hiddens,
+                s_qry_attn, t_qry_attn,
+                input_data['student_inputs']['qry']['input_ids'],
+                input_data['teacher_inputs']['qry']['input_ids'],
+                self.student_processor,
+                self.teacher_processor,
+                distiller.temperature
+            )
+        else:
+            loss_scl = zero
 
         total_loss = loss_infonce + \
                      (self.mse_weight * loss_mse) + \
@@ -245,12 +253,16 @@ class PGAKDLoss(nn.Module):
 
         t_img_intra, t_txt_intra, t_img_cross, t_txt_cross = self.scl_projectors(t_img_raw, t_txt_raw)
 
-        loss_img_img = self._info_nce(s_img, t_img_intra, temperature)
-        loss_txt_txt = self._info_nce(s_txt, t_txt_intra, temperature)
-        loss_img_txt = self._info_nce(s_img, t_txt_cross, temperature)
-        loss_txt_img = self._info_nce(s_txt, t_img_cross, temperature)
+        # a disabled group contributes 0 but the /4 stays, so the remaining pathways keep their scale
+        total = torch.zeros((), device=s_img.device)
+        if self.use_intra:
+            total = total + self._info_nce(s_img, t_img_intra, temperature) \
+                          + self._info_nce(s_txt, t_txt_intra, temperature)
+        if self.use_inter:
+            total = total + self._info_nce(s_img, t_txt_cross, temperature) \
+                          + self._info_nce(s_txt, t_img_cross, temperature)
 
-        return (loss_img_img + loss_txt_txt + loss_img_txt + loss_txt_img) / 4.0
+        return total / 4.0
 
     def _info_nce(self, s_features: torch.Tensor, t_features: torch.Tensor, temp: float) -> torch.Tensor:
         s_norm = F.normalize(s_features, dim=-1)
