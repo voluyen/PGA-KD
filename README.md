@@ -85,7 +85,7 @@ or document-heavy.
 ## Setup
 
 ```bash
-conda create -n pga-kd python=3.11 -y
+conda create -n pga-kd --override-channels -c conda-forge python=3.11 -y
 conda activate pga-kd
 pip install -r requirements.txt
 python fix_lib.py

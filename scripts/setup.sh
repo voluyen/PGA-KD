@@ -8,7 +8,8 @@ ENV_NAME=${ENV_NAME:-pga-kd}
 command -v conda >/dev/null || { echo "conda not found; install Miniconda first" >&2; exit 1; }
 eval "$(conda shell.bash hook)"
 if ! conda env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
-    conda create -y -n "$ENV_NAME" python=3.11
+    # conda-forge only: the default Anaconda channels require accepting their ToS first
+    conda create -y -n "$ENV_NAME" --override-channels -c conda-forge python=3.11
 fi
 conda activate "$ENV_NAME"
 echo "Using $(python --version) at $(which python)"
