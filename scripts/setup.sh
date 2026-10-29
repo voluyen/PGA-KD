@@ -34,5 +34,5 @@ else
     echo "[skip] eval_images exists"
 fi
 
-# weights & biases is the default logger; set REPORT_TO=none to disable it
+# wandb is off by default; set REPORT_TO=wandb to enable it
 echo "Setup done. Run 'conda activate $ENV_NAME', then 'wandb login' (or export REPORT_TO=none)."

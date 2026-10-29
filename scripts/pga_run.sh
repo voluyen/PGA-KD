@@ -110,7 +110,7 @@ else
         --image_resolution "low" \
         --projector_config_path "./config/projector_config.json" \
         --projector_lr 5e-4 \
-        --report_to "${REPORT_TO:-wandb}" --run_name "$EXP_NAME" \
+        --report_to "${REPORT_TO:-none}" --run_name "$EXP_NAME" \
         --pga_mse_loss_weight "$MSE_W" \
         --pga_loss_weight "$PGA_W" \
         --pga_scl_loss_weight "$SCL_W" \
