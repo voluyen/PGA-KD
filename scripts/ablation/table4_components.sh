@@ -15,4 +15,4 @@ run no_inter            DISABLE_INTER=1
 run no_pga_intra        DISABLE_PGA=1 DISABLE_INTRA=1
 run no_pga_inter        DISABLE_PGA=1 DISABLE_INTER=1
 run no_intra_inter      DISABLE_INTRA=1 DISABLE_INTER=1
-EXP_NAME="PGA_fastvlm_vqa_abl_full" bash scripts/pga_run.sh
+bash scripts/pga_run.sh   # full model = main VQA run (default EXP_NAME)

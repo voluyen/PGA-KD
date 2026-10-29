@@ -7,7 +7,11 @@ cd "$(dirname "$0")/../.."
 export STUDENT=fastvlm TASK=vqa EVAL_SETS=id
 
 while read -r r a; do
-    LORA_R=$r LORA_A=$a EXP_NAME="PGA_fastvlm_vqa_r${r}_a${a}" bash scripts/pga_run.sh
+    if [ "$r $a" = "128 512" ]; then   # full model = main VQA run (default EXP_NAME)
+        bash scripts/pga_run.sh
+    else
+        LORA_R=$r LORA_A=$a EXP_NAME="PGA_fastvlm_vqa_r${r}_a${a}" bash scripts/pga_run.sh
+    fi
 done <<'GRID'
 2 8
 4 16

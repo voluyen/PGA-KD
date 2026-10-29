@@ -9,6 +9,7 @@
 #   EVAL_SETS id | ood | both | none             (default id)
 #   NUM_GPUS  GPUs to use                        (default 1)
 #   BATCH_SIZE  per-GPU micro-batch              (default: paper's per-GPU value; lower it on OOM)
+#   MASTER_PORT  rendezvous port (default 29500); use a different one per concurrent job
 #   The paper's global batch (8 x per-GPU) is kept via gradient accumulation.
 #   EXP_NAME  run name, also the folder under training/ and eval_outputs/
 #   LORA_R LORA_A MSE_W PGA_W SCL_W VAR_T SEED WARMUP   override the track defaults
@@ -87,7 +88,7 @@ echo "    mse=$MSE_W pga=$PGA_W scl=$SCL_W eta=$VAR_T ${EXTRA[*]:-}"
 if [ -d "$CKPT" ]; then
     echo "[skip] $CKPT exists"
 else
-    torchrun --nproc_per_node="$NUM_GPUS" main.py \
+    torchrun --nproc_per_node="$NUM_GPUS" --master_port "${MASTER_PORT:-29500}" main.py \
         --model_name "$MODEL" \
         --teacher_model_name "raghavlite/B3_Qwen2_2B" \
         --lora True --teacher_lora True \
@@ -128,7 +129,7 @@ evaluate() {
     done
     [ ${#todo[@]} -eq 0 ] && { echo "[skip] eval: $subset"; return; }
     export PYTHONPATH="$PWD:${PYTHONPATH:-}"
-    accelerate launch --multi_gpu --num_processes="$NUM_GPUS" eval_mmeb.py \
+    accelerate launch --multi_gpu --num_processes="$NUM_GPUS" --main_process_port "${MASTER_PORT:-29500}" eval_mmeb.py \
         --model_name "$CKPT" \
         --encode_output_path "$out" \
         --dataset_name "TIGER-Lab/MMEB-eval" \
