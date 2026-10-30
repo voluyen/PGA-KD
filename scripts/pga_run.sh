@@ -34,10 +34,10 @@ VAR_T=${VAR_T:-0.85}
 case "$STUDENT:$TASK" in
     fastvlm:cls)     PER_GPU=32; R=64;  A=128; WU=1.0 ;;
     fastvlm:vqa)     PER_GPU=32; R=128; A=512; WU=1.0 ;;
-    fastvlm:ret)     PER_GPU=16; R=128; A=128; WU=1.0 ;;
-    fastvlm:grd)     PER_GPU=16; R=128; A=256; WU=1.0 ;;
-    onevision:cls)   PER_GPU=8;  R=16;  A=32;  WU=0.03 ;;
-    onevision:vqa)   PER_GPU=16; R=32;  A=128; WU=1.0 ;;
+    fastvlm:ret)     PER_GPU=16; R=128; A=256; WU=1.0 ;;
+    fastvlm:grd)     PER_GPU=16; R=128; A=128; WU=1.0 ;;
+    onevision:cls)   PER_GPU=16; R=16;  A=32;  WU=0.03 ;;
+    onevision:vqa)   PER_GPU=8;  R=32;  A=128; WU=1.0 ;;
     onevision:ret)   PER_GPU=16; R=32;  A=128; WU=1.0 ;;
     onevision:grd)   PER_GPU=16; R=32;  A=128; WU=1.0 ;;
     *) echo "unknown STUDENT:TASK = $STUDENT:$TASK" >&2; exit 1 ;;
@@ -92,7 +92,7 @@ else
         --model_name "$MODEL" \
         --teacher_model_name "raghavlite/B3_Qwen2_2B" \
         --lora True --teacher_lora True \
-        --lora_r "$LORA_R" --lora_alpha "$LORA_A" --teacher_lora_r 8 \
+        --lora_r "$LORA_R" --lora_alpha "$LORA_A" --lora_dropout 0.05 --teacher_lora_r 8 \
         --teacher_pooling "eos" --teacher_backbone "qwen2_vl" \
         --model_backbone "$BACKBONE" --pooling "eos" \
         --dataset_name "TIGER-Lab/MMEB-train" \
@@ -129,13 +129,15 @@ evaluate() {
     done
     [ ${#todo[@]} -eq 0 ] && { echo "[skip] eval: $subset"; return; }
     export PYTHONPATH="$PWD:${PYTHONPATH:-}"
-    accelerate launch --multi_gpu --num_processes="$NUM_GPUS" --main_process_port "${MASTER_PORT:-29500}" eval_mmeb.py \
+    local launch=(accelerate launch --num_processes="$NUM_GPUS" --main_process_port "${MASTER_PORT:-29500}")
+    [ "$NUM_GPUS" -gt 1 ] && launch+=(--multi_gpu)  # accelerate rejects --multi_gpu with fewer than 2 processes
+    "${launch[@]}" eval_mmeb.py \
         --model_name "$CKPT" \
         --encode_output_path "$out" \
         --dataset_name "TIGER-Lab/MMEB-eval" \
         --subset_name "${todo[@]}" \
         --dataset_split "test" \
-        --per_device_eval_batch_size 128 \
+        --per_device_eval_batch_size "${EVAL_BATCH_SIZE:-32}" \
         --image_dir "eval_images/" \
         --pooling "eos" \
         --model_backbone "$BACKBONE" \

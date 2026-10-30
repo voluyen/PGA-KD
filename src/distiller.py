@@ -271,6 +271,12 @@ class Distiller(nn.Module):
             self.holo_projector = self.holo_projector.to(dtype=torch.bfloat16)
             logger.info("Initialized holo_projector (Student -> Teacher) for HoloDistill")
 
+        if kd_loss_type == 'pga':
+            # built here rather than inside the loss so they reach the optimizer (and DDP)
+            from src.criterions.pga import SCLProjectors
+            self.scl_projectors = SCLProjectors(self.teacher_hidden_dim, self.student_hidden_dim).to(dtype=torch.bfloat16)
+            logger.info("Initialized scl_projectors for PGA-KD")
+
     def get_student_processor(self) -> ProcessorMixin:
         """
         Gets the processor needed to prepare inputs for the student model.
@@ -386,6 +392,11 @@ class Distiller(nn.Module):
             optimizer.add_param_group({
                 "params": self.projectors.parameters(),
                 "lr": lr
+            })
+        if getattr(self, 'scl_projectors', None) is not None:
+            optimizer.add_param_group({
+                "params": self.scl_projectors.parameters(),
+                "lr": getattr(self.training_args, "projector_lr", None) or self.training_args.learning_rate
             })
         logger.info("Projector parameters added to optimizer.")
         return optimizer

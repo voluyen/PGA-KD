@@ -68,7 +68,6 @@ class PGAKDLoss(nn.Module):
         self.use_pga = not getattr(args, 'pga_disable_pga', False)
         self.use_intra = not getattr(args, 'pga_disable_intra', False)
         self.use_inter = not getattr(args, 'pga_disable_inter', False)
-        self.projector_lr = getattr(args, 'projector_lr', 5e-4)
         self.variance_threshold = getattr(args, 'pga_spectral_variance_threshold', 0.95)
 
         self.mse_loss_fn = nn.MSELoss(reduction='mean')
@@ -104,6 +103,9 @@ class PGAKDLoss(nn.Module):
             self.student_dim = distiller.student_hidden_dim
             self.teacher_processor = distiller.get_teacher_processor()
             self.student_processor = distiller.get_student_processor()
+            # owned by the distiller so they are trained; see Distiller.add_optimizer_param_group
+            self.scl_projectors = distiller.scl_projectors
+            self.initialized_scl_projectors = True
 
         # 1. Encode query/positive with both models
         with torch.no_grad():
@@ -244,10 +246,6 @@ class PGAKDLoss(nn.Module):
             logger.warning("SCL loss requires processors for both student and teacher models.")
             return torch.tensor(0.0, device=s_ids.device)
 
-        if not self.initialized_scl_projectors:
-            self.scl_projectors = SCLProjectors(self.teacher_dim, self.student_dim).to(s_hidden[-1].device)
-            self.initialized_scl_projectors = True
-
         s_img, s_txt = self._get_image_text_representation(s_hidden, s_attn, processor_student, s_ids)
         t_img_raw, t_txt_raw = self._get_image_text_representation(t_hidden, t_attn, processor_teacher, t_ids)
 
@@ -366,12 +364,3 @@ class PGAKDLoss(nn.Module):
         text_representation = get_weighted_rep(expanded_text_mask)
 
         return image_representation, text_representation
-
-    def _add_optimizer_param_group(self, optimizer: torch.optim.Optimizer) -> torch.optim.Optimizer:
-        lr = self.projector_lr
-        optimizer.add_param_group({
-            "params": self.scl_projectors.parameters(),
-            "lr": lr
-        })
-        logger.info(f"SCL Projector parameters added to optimizer with lr: {lr}")
-        return optimizer
