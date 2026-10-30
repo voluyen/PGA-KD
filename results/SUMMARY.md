@@ -12,3 +12,4 @@
 Table 4 ablation (vqa, mean of the 6 ID sets): no_pga 48.3, no_intra 50.5, no_inter 50.5, no_pga_intra 48.6 (paper: 51.6 / 53.1 / 52.5); no_pga_inter and no_intra_inter still running.
 
 Known deviations: 1 GPU with gradient accumulation (32 negatives per micro-batch vs ~256 in the paper); lambdas MSE 1.0 / PGA 2.0 / SCL 0.01 (paper Table 6 and Table A2 disagree); one seed. VQA ID is the only track with a clear gap.
+- no_pga_inter: 48.2 (6 sets)
